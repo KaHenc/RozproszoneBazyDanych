@@ -1,0 +1,102 @@
+--MSSQL
+
+use sbd
+
+create table comments(
+	Id Text,
+	PostId Text,
+	Score integer,
+	Text Text,
+	CreationDate Text,
+	UserId Text
+);
+
+create table users(
+	Id Text,
+    Reputation Text,
+    CreationDate Text,
+    DisplayName Text,
+    LastAccessDate Text,
+	Location Text,
+    AboutMe Text,
+    Views Text,
+    UpVotes Text,
+    DownVotes Text,
+    AccountId Text,
+    ProfileImageUrl Text,
+	WebsiteUrl Text
+);
+
+truncate table comments
+BULK INSERT comments
+FROM 'C:\Users\Public\CSV\Comments500000.csv'
+WITH
+(
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ';',  --CSV field delimiter
+    ROWTERMINATOR = '\n',   --Use to shift the control to next row
+    TABLOCK
+)
+
+truncate table users
+BULK INSERT users
+FROM 'C:\Users\Public\CSV\Users500000.csv'
+WITH
+(
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ';',  --CSV field delimiter
+    ROWTERMINATOR = '\n',   --Use to shift the control to next row
+    TABLOCK
+)
+
+set statistics time on
+select * from comments
+set statistics time off
+
+set statistics time on
+select top 1000 comments.Id as Id_Komentarza,
+	comments.Score as Punkty_Komentarza,
+	users.DisplayName as Nazwa_Uzytkownika,
+	users.Reputation as Reputacja_Uzytkownika,
+	comments.CreationDate as Data_Utworzenia
+	from comments
+inner join users on users.id like comments.userId
+where comments.Score > 0 and users.DisplayName is not null
+order by cast(comments.Score as int) desc
+set statistics time off
+
+set statistics time on
+select * from comments where Score > 5 and Score < 100 and Text is not null
+order by cast(comments.Score as int) desc
+set statistics time off
+
+
+--MongoDB
+
+db.comments.find()
+
+db.comments.aggregate([
+    {
+        $match: {
+            "Score":"$gt: 0", 
+            "$users.DisplayName":"$ne: null"
+        }
+    },
+    {
+        $lookup: {
+               from: "users",
+               localField: "UserId",
+               foreignField: "Id",
+               as: "users"
+             }},
+             { "$project": {
+             "Id": 1,
+             "Score": 1,
+             "CreationDate": 1,
+             "usersDisplayName": "$users.DisplayName",
+             "usersReputation": "$users.Reputation"}
+    }
+    ]).limit(1000).sort({"Score": -1})
+    
+    
+db.comments.find( {Score: { $gt: 5, $lt: 100},Text: {$ne: null}}).sort({"Score": -1})
